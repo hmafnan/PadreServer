@@ -1,0 +1,11 @@
+{% load static %}
+{#<link rel="stylesheet" type="text/css" href="{% static 'padre/style.css' %}" />#}
+{% if visualization_list %}
+           <ul>
+    {% for vis in visualization_list %}
+        <li><label><b>{{vis.title}}: </b></label> {{ vis.visualization }}</li>
+    {% endfor %}
+       </ul>
+{% else %}
+           <p>Visualization are not available</p>
+{% endif %}
