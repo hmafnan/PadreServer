@@ -4,6 +4,7 @@ from . import views
 
 
 urlpatterns = [
+    url(r'^db-indices-to-db-entries/$', views.map_db_indices_to_db_entries, name='padretest'),
     url(r'^visualization/$', views.visualization, name='visualization'),
     path('visualization/<int:vis_id>/data/', views.visualization_data, name='visualization-data'),
     url(r'^dataset-visualization/$', views.dataset_visualization, name='dataset-visualization'),

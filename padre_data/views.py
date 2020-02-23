@@ -3,8 +3,45 @@ from django.http import JsonResponse
 from .models import *
 from django.views.decorators.csrf import csrf_exempt
 
-NGROK_URL = 'https://' + 'a083cdf3.ngrok.io'
+from pypadre.core.my_backend import https
 
+NGROK_URL = 'https://' + 'a083cdf3.ngrok.io'
+TOKEN = 'Bearer 5d9ac400-6c0a-460a-a209-a93b9a470865'
+
+@csrf_exempt
+def map_db_indices_to_db_entries(request):
+    """
+    Maps db indices to db entries for given indices of tp, tn, fp, fn
+
+    Post object should contain data in a form:
+        POST: {
+            'dataset_id' str (Dataset for which original feature vector should be returned)
+            'db_indices': {   (Original feature vector for each operation ie tp, tn, fp, fn)
+                'tp': list of str indices,
+                'tn': list of str indices,
+                'fp': list of str indices,
+                'fn': list of str indices
+            }
+        }
+
+    returns:
+    """
+    dataset_id_on_server = request.POST.get('dataset_id', '102')
+    db_indices = json.loads(request.POST['db_indices'])
+    label = {'tp': 'True Positive Entries', 'tn': 'True Negative Entries',
+             'fp': 'False Positive Entries', 'fn': 'False Negative Entries'}
+    pc = https.PadreHTTPClient(token=TOKEN)
+
+    ds = pc.datasets.get(dataset_id_on_server)
+    attributes = [attr['name'] for attr in ds.attributes]
+    db_data = json.loads(ds.data().to_json(orient='records'))
+    data = []
+    for key, indices in db_indices.items():
+        data.append({
+            'title': label[key],
+            key: [list(db_data[i].values()) for i in indices]
+        })
+    return JsonResponse({"headers": attributes, "data": data}, safe=False)
 
 @csrf_exempt
 def visualization_data(request, vis_id):
@@ -62,14 +99,18 @@ def split_visualization(request):
     if request.method == 'POST':
         split_id = request.POST['split_id']
         vis_id = request.POST['visualization_id']
+        pr_curve_data = json.loads(request.POST['pr_curve_data'])
         obj = SplitVisualization.objects.create(split_id=split_id,
-                                                vis_id=vis_id)
+                                                vis_id=vis_id,
+                                                pr_curve_data=pr_curve_data)
         return JsonResponse({'id': obj.id})
     else:
         split_id = request.GET['split_id']
         data = []
         for obj in SplitVisualization.objects.filter(split_id=split_id):
-            data.append({'title': obj.vis.title, 'visualization': obj.vis.visualization})
+            data.append({'title': obj.vis.title,
+                         'visualization': obj.vis.visualization,
+                         'pr_curve_data': obj.pr_curve_data})
         return JsonResponse(data, safe=False)
 
 

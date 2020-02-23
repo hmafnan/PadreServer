@@ -20,6 +20,7 @@ class SplitVisualization(models.Model):
     """All visualizations references for splits"""
     split_id = models.CharField(max_length=50)
     vis = models.ForeignKey(Visualization, on_delete=models.DO_NOTHING,)
+    pr_curve_data = jsonfield.JSONField(default={})
 
 
 class RunVisualization(models.Model):
