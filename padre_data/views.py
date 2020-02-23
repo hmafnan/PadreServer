@@ -26,22 +26,28 @@ def map_db_indices_to_db_entries(request):
 
     returns:
     """
-    dataset_id_on_server = request.POST.get('dataset_id', '102')
-    db_indices = json.loads(request.POST['db_indices'])
+    dataset_id_on_server = request.GET.get('dataset_id', '102')
+    split_id = request.GET.get('split_id', None)
+    vis_id = request.GET.get('vis_id', None)
+    threshold = request.GET.get('threshold', None)
     label = {'tp': 'True Positive Entries', 'tn': 'True Negative Entries',
              'fp': 'False Positive Entries', 'fn': 'False Negative Entries'}
     pc = https.PadreHTTPClient(token=TOKEN)
+    db_indices = SplitVisualization.objects.get(split_id=split_id, vis_id=vis_id).pr_curve_data
+    db_indices = db_indices[threshold]
 
     ds = pc.datasets.get(dataset_id_on_server)
     attributes = [attr['name'] for attr in ds.attributes]
     db_data = json.loads(ds.data().to_json(orient='records'))
-    data = []
+    data = {"headers": attributes}
     for key, indices in db_indices.items():
-        data.append({
+        if key == 'cm':
+            continue
+        data[key] = {
             'title': label[key],
-            key: [list(db_data[i].values()) for i in indices]
-        })
-    return JsonResponse({"headers": attributes, "data": data}, safe=False)
+            'data': [list(db_data[i].values()) for i in indices]
+        }
+    return JsonResponse(data, safe=False)
 
 @csrf_exempt
 def visualization_data(request, vis_id):
@@ -108,9 +114,12 @@ def split_visualization(request):
         split_id = request.GET['split_id']
         data = []
         for obj in SplitVisualization.objects.filter(split_id=split_id):
-            data.append({'title': obj.vis.title,
-                         'visualization': obj.vis.visualization,
-                         'pr_curve_data': obj.pr_curve_data})
+            cm_data = {thr: obj.pr_curve_data[thr]['cm'] for thr in obj.pr_curve_data.keys()}
+            data.append({
+                'uid': obj.vis.id,
+                'title': obj.vis.title,
+                'schema': obj.vis.visualization,
+                'thresholdsCM': cm_data})
         return JsonResponse(data, safe=False)
 
 
