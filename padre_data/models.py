@@ -21,6 +21,7 @@ class SplitVisualization(models.Model):
     split_id = models.CharField(max_length=50)
     vis = models.ForeignKey(Visualization, on_delete=models.DO_NOTHING,)
     pr_curve_data = jsonfield.JSONField(default={})
+    multi_class = models.BooleanField(default=False)
 
 
 class RunVisualization(models.Model):

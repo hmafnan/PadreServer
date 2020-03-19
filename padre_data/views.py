@@ -1,12 +1,14 @@
 import json
+import pandas as pd
 from django.http import JsonResponse
 from .models import *
+from . import helpers
 from django.views.decorators.csrf import csrf_exempt
 
 from pypadre.core.my_backend import https
 
 NGROK_URL = 'https://' + 'a083cdf3.ngrok.io'
-TOKEN = 'Bearer 5d9ac400-6c0a-460a-a209-a93b9a470865'
+TOKEN = 'Bearer ff3847eb-3cd4-4cfb-81b9-7e14fa650738'
 
 @csrf_exempt
 def map_db_indices_to_db_entries(request):
@@ -26,17 +28,25 @@ def map_db_indices_to_db_entries(request):
 
     returns:
     """
-    dataset_id_on_server = request.GET.get('dataset_id', '102')
+    dataset_id_on_server = request.GET.get('dataset_id', '')
     split_id = request.GET.get('split_id', None)
     vis_id = request.GET.get('vis_id', None)
     threshold = request.GET.get('threshold', None)
+    legend = request.GET.get('label', None)
     label = {'tp': 'True Positive Entries', 'tn': 'True Negative Entries',
              'fp': 'False Positive Entries', 'fn': 'False Negative Entries'}
     pc = https.PadreHTTPClient(token=TOKEN)
     db_indices = SplitVisualization.objects.get(split_id=split_id, vis_id=vis_id).pr_curve_data
-    db_indices = db_indices[threshold]
+    if legend is not None:
+        legend = str(float(legend))
+        db_indices = db_indices[legend][threshold]
+    else:
+        db_indices = db_indices[threshold]
 
-    ds = pc.datasets.get(dataset_id_on_server)
+    if dataset_id_on_server == '':
+        ds = helpers.load_digits_data()
+    else:
+        ds = pc.datasets.get(dataset_id_on_server)
     attributes = [attr['name'] for attr in ds.attributes]
     db_data = json.loads(ds.data().to_json(orient='records'))
     data = {"headers": attributes}
@@ -55,6 +65,53 @@ def visualization_data(request, vis_id):
     vis = Visualization.objects.get(id=vis_id)
     data = vis.data
     return JsonResponse(data, safe=False)
+
+@csrf_exempt
+def split_vis_curve_for_label(request, split_id, vis_id, label):
+    """Get json data for visualization"""
+    label = float(label)
+    vis = Visualization.objects.get(id=vis_id)
+    obj = SplitVisualization.objects.filter(split_id=split_id, vis_id=vis_id).first()
+    cm_data = {thr: obj.pr_curve_data[str(label)][thr]['cm'] for thr in obj.pr_curve_data[str(label)].keys()}
+    vis_data = list(filter(lambda d: d['color'] == label, vis.data))
+    schema = {
+        '$schema': 'https://vega.github.io/schema/vega-lite/v4.0.2.json',
+        'config': {'view': {'continuousHeight': 300, 'continuousWidth': 400}},
+        'data': {'name': 'data-eb5321d2f4f6aa0a85d78db4b85fdcf8'},
+        'datasets': {'data-eb5321d2f4f6aa0a85d78db4b85fdcf8': vis_data},
+        'layer': [{
+            'encoding':
+                {'x': {'field': 'x', 'title': 'Recall', 'type': 'quantitative'},
+                 'y': {'field': 'y', 'title': 'Precision', 'type': 'quantitative'}},
+            'mark': {'color': 'lightblue', 'interpolate': 'step-after', 'line': True, 'type': 'area'
+                     }},
+            {'encoding': {'opacity': {'value': 0},
+            'x': {'field': 'x', 'type': 'quantitative'}},
+           'mark': 'point',
+           'selection': {'selector009': {'empty': 'none',
+             'nearest': True,
+             'on': 'mouseover',
+             'type': 'single'}}},
+          {'encoding': {'opacity': {'condition': {'selection': 'selector009',
+              'value': 1},
+             'value': 0},
+            'x': {'field': 'x', 'title': 'Recall', 'type': 'quantitative'},
+            'y': {'field': 'y', 'title': 'Precision', 'type': 'quantitative'}},
+           'mark': 'point'},
+          {'encoding': {'text': {'condition': {'field': 'thresholds',
+              'selection': 'selector009',
+              'type': 'ordinal'},
+             'value': ' '},
+            'x': {'field': 'x', 'title': 'Recall', 'type': 'quantitative'},
+            'y': {'field': 'y', 'title': 'Precision', 'type': 'quantitative'}},
+           'mark': {'align': 'left', 'dx': 5, 'dy': -5, 'type': 'text'}}],
+         'title': 'Curve for label ' + str(label)
+    }
+    result = {'schema': schema, 'thresholdsCM': cm_data}
+
+    return JsonResponse(result, safe=False)
+
+
 
 
 @csrf_exempt
@@ -114,11 +171,17 @@ def split_visualization(request):
         split_id = request.GET['split_id']
         data = []
         for obj in SplitVisualization.objects.filter(split_id=split_id):
-            cm_data = {thr: obj.pr_curve_data[thr]['cm'] for thr in obj.pr_curve_data.keys()}
+            cm_data = {thr: obj.pr_curve_data[thr]['cm'] for thr in obj.pr_curve_data.keys() if not obj.multi_class}
+            if 'color' in obj.vis.data[0].keys():
+                legends = {item['color'] for item in obj.vis.data}
+                legends = [{"text": item, "value": item} for item in legends]
+            else:
+                legends = []
             data.append({
                 'uid': obj.vis.id,
                 'title': obj.vis.title,
                 'schema': obj.vis.visualization,
+                'legend': legends,
                 'thresholdsCM': cm_data})
         return JsonResponse(data, safe=False)
 
