@@ -217,7 +217,9 @@ def experiment_visualization(request):
         experiment_id = request.GET['experiment_id']
         data = []
         for obj in ExperimentVisualization.objects.filter(experiment_id=experiment_id):
-            data.append({'title': obj.vis.title, 'visualization': obj.vis.visualization})
+            data.append({'uid': obj.vis.id,
+                         'title': obj.vis.title,
+                         'schema': obj.vis.visualization})
         return JsonResponse(data, safe=False)
 
 
