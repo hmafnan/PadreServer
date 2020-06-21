@@ -15,6 +15,7 @@ added in views.py
 two extra dependencies: Django==3.0.3 and django-jsonfield==1.0.4.
 - Activate newly created virtual environment
 - At the root do `pip install -r requirements.txt`
+- Run `./manage.py migrate` so that database is initialized
 - Run Django Server
 - Make sure host path of running server is properly added to PaDRE Client -> DjangoServer back-end and SPA, 
 so that they communicate with it properly
