@@ -1,14 +1,15 @@
+"""End points for django server are defined here"""
 import json
-import pandas as pd
+
 from django.http import JsonResponse
-from .models import *
-from . import helpers
 from django.views.decorators.csrf import csrf_exempt
 
 from pypadre.core.my_backend import https
+from . import helpers
+from .models import *
 
-NGROK_URL = 'https://' + 'a083cdf3.ngrok.io'
-TOKEN = 'Bearer 71d0d4a6-3e0b-4d05-a2e0-a1b604b657cb'
+TOKEN = 'Bearer token-here'
+
 
 @csrf_exempt
 def map_db_indices_to_db_entries(request):
@@ -63,6 +64,7 @@ def map_db_indices_to_db_entries(request):
         }
     return JsonResponse(data, safe=False)
 
+
 @csrf_exempt
 def visualization_data(request, vis_id):
     """Get json data for visualization"""
@@ -73,38 +75,46 @@ def visualization_data(request, vis_id):
 
 @csrf_exempt
 def run_vis_curve_for_label(request, run_id, vis_id, label):
-    """Get json data for visualization"""
+    """Get json data for visualization for run.
+
+    Also retrieve data such as confusion matrices for all the thresholds for run.
+    """
     label = float(label)
     vis = Visualization.objects.get(id=vis_id)
     obj = RunVisualization.objects.filter(run_id=run_id, vis_id=vis_id).first()
-    cm_data = {thr: obj.pr_curve_data[str(label)][thr]['cm'] for thr in obj.pr_curve_data[str(label)].keys()}
+    cm_data = {thr: obj.pr_curve_data[str(label)][thr]['cm'] for thr in
+               obj.pr_curve_data[str(label)].keys()}
     vis_data = list(filter(lambda d: d['color'] == label, vis.data))
     schema = get_curve_schema(str(label), vis_data)
     result = {'schema': schema, 'thresholdsCM': cm_data}
 
     return JsonResponse(result, safe=False)
+
 
 @csrf_exempt
 def split_vis_curve_for_label(request, split_id, vis_id, label):
-    """Get json data for visualization"""
+    """Get json data for visualization.
+
+    Also retrieve data such as confusion matrices for all the thresholds for split/computation.
+    """
     label = float(label)
     vis = Visualization.objects.get(id=vis_id)
     obj = SplitVisualization.objects.filter(split_id=split_id, vis_id=vis_id).first()
-    cm_data = {thr: obj.pr_curve_data[str(label)][thr]['cm'] for thr in obj.pr_curve_data[str(label)].keys()}
+    cm_data = {thr: obj.pr_curve_data[str(label)][thr]['cm'] for thr in
+               obj.pr_curve_data[str(label)].keys()}
     vis_data = list(filter(lambda d: d['color'] == label, vis.data))
     schema = get_curve_schema(str(label), vis_data)
     result = {'schema': schema, 'thresholdsCM': cm_data}
 
     return JsonResponse(result, safe=False)
-
-
 
 
 @csrf_exempt
 def visualization(request):
-    """Save visualization or get all visualizations
+    """Save given visualization or get all visualizations.
 
-    While saving visualization schema, save data reference instead of full data
+    While saving visualization schema, store data separately and map data reference in the
+    specification.
     """
     if request.method == 'POST':
         title = request.POST['title']
@@ -138,7 +148,8 @@ def dataset_visualization(request):
         dataset_id = request.GET['dataset_id']
         data = []
         for obj in DatasetVisualization.objects.filter(dataset_id=dataset_id):
-            data.append({'uid': obj.vis.id, 'title': obj.vis.title, 'schema': obj.vis.visualization})
+            data.append(
+                {'uid': obj.vis.id, 'title': obj.vis.title, 'schema': obj.vis.visualization})
         return JsonResponse(data, safe=False)
 
 
@@ -157,7 +168,8 @@ def split_visualization(request):
         split_id = request.GET['split_id']
         data = []
         for obj in SplitVisualization.objects.filter(split_id=split_id):
-            cm_data = {thr: obj.pr_curve_data[thr]['cm'] for thr in obj.pr_curve_data.keys() if not obj.multi_class}
+            cm_data = {thr: obj.pr_curve_data[thr]['cm'] for thr in obj.pr_curve_data.keys() if
+                       not obj.multi_class}
             if 'color' in obj.vis.data[0].keys():
                 legends = {item['color'] for item in obj.vis.data}
                 legends = [{"text": item, "value": item} for item in legends]
@@ -224,6 +236,7 @@ def experiment_visualization(request):
 
 
 def get_curve_schema(title, data):
+    """Json specification for creating a curve using Vega-Lite"""
     schema = {
         '$schema': 'https://vega.github.io/schema/vega-lite/v4.0.2.json',
         'config': {'view': {'continuousHeight': 300, 'continuousWidth': 400}},

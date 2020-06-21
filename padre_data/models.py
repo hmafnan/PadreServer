@@ -1,6 +1,5 @@
+"""Models for django server are defined here"""
 from django.db import models
-
-
 import jsonfield
 
 
